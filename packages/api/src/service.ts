@@ -14,7 +14,7 @@ export function validateTerm(t: unknown): string {
   return t;
 }
 export function validateStudentNo(n: unknown): string {
-  if (typeof n !== 'string' || !STUDENT_RE.test(n)) throw new AppError(400, 'VALIDATION_ERROR', 'studentNo must be an 11-digit number (e.g. e.g. 23070000101)');
+  if (typeof n !== 'string' || !STUDENT_RE.test(n)) throw new AppError(400, 'VALIDATION_ERROR', 'studentNo must be an 11-digit number (e.g. 23070000101)');
   return n;
 }
 

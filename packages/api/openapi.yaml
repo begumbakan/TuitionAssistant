@@ -39,7 +39,7 @@ components:
       type: object
       required: [studentNo, term, amount, transactionId]
       properties:
-        studentNo: {type: string, example: "23070006005"}
+        studentNo: {type: string, example: "23070000101"}
         term: {type: string, example: 2026-FALL}
         amount: {type: number, example: 500}
         transactionId: {type: string, example: TX-2026-000123, description: Unique; duplicates are rejected (409)}
@@ -72,7 +72,7 @@ paths:
       summary: Obtain a JWT
       requestBody:
         required: true
-        content: {application/json: {schema: {type: object, required: [username, password], properties: {username: {type: string, example: "23070006005"}, password: {type: string, example: student123}}}}}
+        content: {application/json: {schema: {type: object, required: [username, password], properties: {username: {type: string, example: "23070000101"}, password: {type: string, example: student123}}}}}
       responses:
         '200': {description: Token issued}
         '401': {$ref: '#/components/responses/Unauthorized'}
@@ -141,7 +141,7 @@ paths:
       security: [{bearerAuth: []}]
       requestBody:
         required: true
-        content: {text/csv: {schema: {type: string, example: "studentNo,term,amount,currency\n23070006005,2027-SPRING,3100,USD"}}}
+        content: {text/csv: {schema: {type: string, example: "studentNo,term,amount,currency\n23070000101,2027-SPRING,3100,USD"}}}
       responses:
         '200': {description: Batch processed}
         '400': {$ref: '#/components/responses/Validation'}
