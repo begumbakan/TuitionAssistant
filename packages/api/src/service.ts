@@ -6,7 +6,7 @@ import type { Store, Tx } from './types.js';
 
 export const MOBILE_DAILY_LIMIT = 3;
 const TERM_RE = /^\d{4}-(FALL|SPRING|SUMMER)$/;
-const STUDENT_RE = /^[A-Za-z0-9]{4,16}$/;
+const STUDENT_RE = /^\d{11}$/;
 const CURRENCIES = ['TRY', 'USD', 'EUR'];
 
 export function validateTerm(t: unknown): string {
@@ -14,7 +14,7 @@ export function validateTerm(t: unknown): string {
   return t;
 }
 export function validateStudentNo(n: unknown): string {
-  if (typeof n !== 'string' || !STUDENT_RE.test(n)) throw new AppError(400, 'VALIDATION_ERROR', 'studentNo must be 4-16 alphanumeric characters');
+  if (typeof n !== 'string' || !STUDENT_RE.test(n)) throw new AppError(400, 'VALIDATION_ERROR', 'studentNo must be an 11-digit number (e.g. e.g. 23070000101)');
   return n;
 }
 

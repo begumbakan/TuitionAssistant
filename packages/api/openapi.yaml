@@ -1,0 +1,161 @@
+openapi: 3.0.3
+info:
+  title: University Tuition API
+  version: 1.0.0
+  description: |
+    Tuition REST API (v1) used by the mobile app, banking app, admin site and the AI Tuition Assistant.
+    Every call goes through the API Gateway. Amounts are decimals with at most 2 decimal places.
+    **Term vs overall:** `term` is optional on Query Tuition. Omitted = overall balance across all terms (with per-term breakdown).
+servers:
+  - url: /api/v1
+tags: [{name: Auth}, {name: Mobile App}, {name: Banking App}, {name: Admin}]
+components:
+  securitySchemes:
+    bearerAuth: {type: http, scheme: bearer, bearerFormat: JWT}
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: {type: object, properties: {code: {type: string}, message: {type: string}}}
+    TermSummary:
+      type: object
+      properties:
+        term: {type: string, example: 2026-FALL}
+        tuitionTotal: {type: number, example: 3000}
+        paidAmount: {type: number, example: 500}
+        balance: {type: number, example: 2500}
+        currency: {type: string, example: USD}
+    TuitionResponse:
+      type: object
+      properties:
+        studentNo: {type: string}
+        scope: {type: string, description: "A term such as 2026-FALL, or ALL_TERMS"}
+        currency: {type: string, nullable: true}
+        tuitionTotal: {type: number}
+        paidAmount: {type: number}
+        balance: {type: number}
+        terms: {type: array, items: {$ref: '#/components/schemas/TermSummary'}}
+    PayRequest:
+      type: object
+      required: [studentNo, term, amount, transactionId]
+      properties:
+        studentNo: {type: string, example: "23070006005"}
+        term: {type: string, example: 2026-FALL}
+        amount: {type: number, example: 500}
+        transactionId: {type: string, example: TX-2026-000123, description: Unique; duplicates are rejected (409)}
+    PayResponse:
+      type: object
+      properties:
+        status: {type: string, enum: [PARTIALLY_PAID, PAID_IN_FULL]}
+        transactionId: {type: string}
+        studentNo: {type: string}
+        term: {type: string}
+        paidAmount: {type: number}
+        remainingBalance: {type: number}
+        currency: {type: string}
+    AddTuitionRequest:
+      type: object
+      required: [studentNo, term, amount, currency]
+      properties:
+        studentNo: {type: string}
+        term: {type: string}
+        amount: {type: number}
+        currency: {type: string, enum: [TRY, USD, EUR]}
+  responses:
+    Unauthorized: {description: Missing/invalid token, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+    Forbidden: {description: Role or ownership check failed, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+    Validation: {description: Invalid input, content: {application/json: {schema: {$ref: '#/components/schemas/Error'}}}}
+paths:
+  /auth/token:
+    post:
+      tags: [Auth]
+      summary: Obtain a JWT
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, required: [username, password], properties: {username: {type: string, example: "23070006005"}, password: {type: string, example: student123}}}}}
+      responses:
+        '200': {description: Token issued}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+  /mobile/tuition/{studentNo}:
+    get:
+      tags: [Mobile App]
+      summary: Query Tuition (mobile) - no auth, limited to 3 calls per student per day
+      parameters:
+        - {name: studentNo, in: path, required: true, schema: {type: string}}
+        - {name: term, in: query, required: false, schema: {type: string, example: 2026-FALL}}
+      responses:
+        '200': {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/TuitionResponse'}}}}
+        '404': {description: Student or term not found}
+        '429': {description: Daily limit exceeded (DAILY_LIMIT_EXCEEDED)}
+  /banking/tuition/{studentNo}:
+    get:
+      tags: [Banking App]
+      summary: Query Tuition (banking) - authenticated
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: studentNo, in: path, required: true, schema: {type: string}}
+        - {name: term, in: query, required: false, schema: {type: string}}
+      responses:
+        '200': {description: OK, content: {application/json: {schema: {$ref: '#/components/schemas/TuitionResponse'}}}}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {description: Not found}
+  /banking/payments:
+    post:
+      tags: [Banking App]
+      summary: Pay Tuition - records a simulated partial or full payment
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/PayRequest'}}}
+      responses:
+        '201': {description: Payment recorded, content: {application/json: {schema: {$ref: '#/components/schemas/PayResponse'}}}}
+        '400': {$ref: '#/components/responses/Validation'}
+        '401': {$ref: '#/components/responses/Unauthorized'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {description: No tuition record}
+        '409': {description: DUPLICATE_TRANSACTION}
+        '422': {description: AMOUNT_EXCEEDS_BALANCE or NOTHING_TO_PAY}
+  /admin/tuition:
+    post:
+      tags: [Admin]
+      summary: Add Tuition - create or update a term's tuition (admin)
+      description: |
+        (studentNo, term) is unique. Calling again UPDATES the total (200). Rejected (409) if the new total is below
+        the amount already paid, or if the currency differs from the student's existing currency.
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/AddTuitionRequest'}}}
+      responses:
+        '201': {description: CREATED}
+        '200': {description: UPDATED}
+        '400': {$ref: '#/components/responses/Validation'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {description: AMOUNT_BELOW_PAID or CURRENCY_MISMATCH}
+  /admin/tuition/batch:
+    post:
+      tags: [Admin]
+      summary: Add Tuition - Batch (CSV)
+      description: 'Body is text/csv with header `studentNo,term,amount,currency`. Returns success/failure counts and per-row results.'
+      security: [{bearerAuth: []}]
+      requestBody:
+        required: true
+        content: {text/csv: {schema: {type: string, example: "studentNo,term,amount,currency\n23070006005,2027-SPRING,3100,USD"}}}
+      responses:
+        '200': {description: Batch processed}
+        '400': {$ref: '#/components/responses/Validation'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+  /admin/tuition/unpaid:
+    get:
+      tags: [Admin]
+      summary: Unpaid Tuition Status (paged)
+      security: [{bearerAuth: []}]
+      parameters:
+        - {name: term, in: query, required: true, schema: {type: string, example: 2026-FALL}}
+        - {name: page, in: query, schema: {type: integer, default: 1, minimum: 1}}
+        - {name: pageSize, in: query, schema: {type: integer, default: 20, minimum: 1, maximum: 100}}
+      responses:
+        '200': {description: Paged unpaid students and balances}
+        '400': {$ref: '#/components/responses/Validation'}
+        '403': {$ref: '#/components/responses/Forbidden'}
