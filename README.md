@@ -442,5 +442,5 @@ az containerapp create -n tuition-agent -g tuition-rg --environment tuition-env 
 - **Off-topic questions:** the system prompt limits the agent to tuition topics. This is prompt-level; the security rules (identity, confirmation, authorization) are enforced in code.
 - **LLM cost:** Gemini free tier (Google AI Studio project without billing), so **0 TL**. All unit tests use a fake LLM, so grading needs no key.
 - **Cloud cost:** Container Apps scale to zero when idle; PostgreSQL B1ms with 32 GB is covered by Azure for Students free services. Resources are deleted after grading (`az group delete -n tuition-rg`).
-- **Demo data:** the seed accounts and passwords are fictitious and public by design, so the instructor can reproduce the results.
+- **Demo data:** the seed accounts and passwords are fictitious and public by design.
 - **Possible production improvements:** managed identity instead of the ACR admin user, Azure Key Vault for secrets, a VNet-integrated environment so the API can be fully internal, and per-user rate limits (`limit_by: credential`) once each user has a Kong consumer.
