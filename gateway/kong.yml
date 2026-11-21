@@ -35,7 +35,7 @@ services:
           - name: jwt
             config: { key_claim_name: iss, claims_to_verify: [exp] }
           - name: rate-limiting
-            config: { minute: 60, policy: local, limit_by: consumer }
+            config: { minute: 60, policy: local, limit_by: ip }
       - name: admin-v1
         paths: [/api/v1/admin]
         strip_path: false
