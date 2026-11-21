@@ -1,0 +1,50 @@
+# Kong (DB-less) declarative config. ALL REST traffic, including the AI agent's, goes through here.
+_format_version: "3.0"
+
+consumers:
+  - username: tuition-api-issuer
+    jwt_secrets:
+      - key: tuition-api              # must match the JWT "iss" claim
+        algorithm: HS256
+        secret: ${{ env "DECK_JWT_SECRET" }}
+
+services:
+  - name: tuition-api-v1
+    url: ${{ env "DECK_API_UPSTREAM" }}   # e.g. http://api:3000
+    routes:
+      # Public routes
+      - name: auth-v1
+        paths: [/api/v1/auth]
+        strip_path: false
+      - name: docs-v1
+        paths: [/api/v1/docs, /api/v1/openapi.yaml]
+        strip_path: false
+      - name: mobile-tuition-v1
+        paths: [/api/v1/mobile]
+        strip_path: false
+        plugins:
+          # Coarse per-IP abuse protection. The real "3 per student per day" rule is keyed by
+          # studentNo and enforced by the API (DB counter), so changing IP does not bypass it.
+          - name: rate-limiting
+            config: { minute: 30, policy: local, limit_by: ip }
+      # Protected routes: gateway validates the JWT first; the API re-checks role + ownership.
+      - name: banking-v1
+        paths: [/api/v1/banking]
+        strip_path: false
+        plugins:
+          - name: jwt
+            config: { key_claim_name: iss, claims_to_verify: [exp] }
+          - name: rate-limiting
+            config: { minute: 60, policy: local, limit_by: consumer }
+      - name: admin-v1
+        paths: [/api/v1/admin]
+        strip_path: false
+        plugins:
+          - name: jwt
+            config: { key_claim_name: iss, claims_to_verify: [exp] }
+
+plugins:
+  - name: request-transformer
+    config: { add: { headers: ["X-Gateway-Secret:${{ env "DECK_GATEWAY_KEY" }}"] } }
+  - name: correlation-id
+    config: { header_name: X-Request-ID, generator: uuid, echo_downstream: true }
